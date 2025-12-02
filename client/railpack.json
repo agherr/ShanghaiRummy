@@ -8,19 +8,19 @@
   "steps": {
     "install": {
       "commands": [
-        { "cmd": "pnpm install --frozen-lockfile -C ..", "customName": "Install dependencies" }
+        { "cmd": "pnpm install --frozen-lockfile", "customName": "Install dependencies" }
       ]
     },
     "build": {
       "inputs": [{ "step": "install" }],
       "commands": [
-        { "cmd": "pnpm --filter @shanghairummy/shared build -C ..", "customName": "Build shared package" },
-        { "cmd": "pnpm --filter @shanghairummy/client build -C ..", "customName": "Build client" }
+        { "cmd": "pnpm --filter @shanghairummy/shared build", "customName": "Build shared package" },
+        { "cmd": "pnpm --filter @shanghairummy/client build", "customName": "Build client" }
       ]
     }
   },
   "deploy": {
-    "inputs": [{ "step": "build", "include": ["."] }],
-    "startCommand": "npx serve -s dist -l 3000"
+    "inputs": [{ "step": "build", "include": ["client/dist"] }],
+    "startCommand": "npx serve -s client/dist -l 3000"
   }
 }
