@@ -8,14 +8,14 @@
   "steps": {
     "install": {
       "commands": [
-        { "cmd": "cd .. && pnpm install --frozen-lockfile", "customName": "Install dependencies" }
+        { "cmd": "pnpm install --frozen-lockfile -C ..", "customName": "Install dependencies" }
       ]
     },
     "build": {
       "inputs": [{ "step": "install" }],
       "commands": [
-        { "cmd": "cd .. && pnpm --filter @shanghairummy/shared build", "customName": "Build shared package" },
-        { "cmd": "cd .. && pnpm --filter @shanghairummy/server build", "customName": "Build server" }
+        { "cmd": "pnpm --filter @shanghairummy/shared build -C ..", "customName": "Build shared package" },
+        { "cmd": "pnpm --filter @shanghairummy/server build -C ..", "customName": "Build server" }
       ]
     }
   },
