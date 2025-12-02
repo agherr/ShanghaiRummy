@@ -410,8 +410,10 @@ io.on('connection', (socket) => {
 });
 
 const PORT = Number(process.env.PORT) || 3001;
+const HOST = '0.0.0.0';
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  console.log(`🚀 Server running on ${HOST}:${PORT}`);
   console.log(`📡 Socket.IO ready for connections`);
+  console.log(`📍 Client URL: ${process.env.CLIENT_URL || 'not set'}`);
 });
