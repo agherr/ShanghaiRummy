@@ -7,7 +7,6 @@
   },
   "steps": {
     "install": {
-      "inputs": [{ "local": true, "include": ["."] }],
       "commands": [
         { "cmd": "pnpm install --frozen-lockfile", "customName": "Install dependencies" }
       ]
