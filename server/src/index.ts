@@ -114,7 +114,7 @@ io.on('connection', (socket) => {
   });
 
   // Start game (host only)
-  socket.on('start-game', (settings) => {
+  socket.on('start-game', () => {
     console.log('🎮 Start game requested by:', socket.id);
     const lobby = lobbyManager.getLobbyByPlayerId(socket.id);
     
@@ -138,10 +138,10 @@ io.on('connection', (socket) => {
     // Notify players game is starting
     io.to(lobby.code).emit('game-starting');
 
-    // Create game state with settings
+    // Create game state
     const playerIds = lobby.players.map(p => p.id);
     const playerNames = lobby.players.map(p => p.name);
-    const gameState = gameManager.createGame(lobby.code, playerIds, playerNames, settings);
+    const gameState = gameManager.createGame(lobby.code, playerIds, playerNames);
     
     // Start the game
     const startedGame = gameManager.startGame(gameState.id);
@@ -155,27 +155,10 @@ io.on('connection', (socket) => {
         }
       });
       
-      // Broadcast initial buy phase (dealer flipped the first card)
-      if (startedGame.buyPhase) {
-        const firstPlayerIndex = (startedGame.dealerIndex + 1) % startedGame.players.length;
-        const firstPlayer = startedGame.players[firstPlayerIndex];
-        
-        if (startedGame.settings.buyMode === 'sequential') {
-          io.to(lobby.code).emit('buy-phase-started', {
-            askingPlayerId: firstPlayer.id,
-            timeLimit: startedGame.settings.buyTimeLimit
-          });
-        } else {
-          io.to(lobby.code).emit('buy-phase-started', {
-            timeLimit: startedGame.settings.buyTimeLimit
-          });
-        }
-        
-        io.to(lobby.code).emit('turn-update', {
-          currentPlayerId: startedGame.currentPlayerId,
-          turnPhase: startedGame.turnPhase
-        });
-      }
+      io.to(lobby.code).emit('turn-update', {
+        currentPlayerId: startedGame.currentPlayerId,
+        turnPhase: startedGame.turnPhase
+      });
       
       console.log(`🎮 Game started for lobby ${lobby.code}`);
     }
@@ -218,150 +201,25 @@ io.on('connection', (socket) => {
     const game = gameManager.getGameByCode(lobby.code);
     if (!game) return;
 
-    // Check if in buy phase - next player can take for free
-    if (game.turnPhase === 'buy') {
-      const result = gameManager.takeDiscardCurrentPlayer(game.id, socket.id);
-      if (!result) {
-        socket.emit('error', 'Cannot take discard right now');
-        return;
-      }
-
-      // Broadcast to all players
-      lobby.players.forEach(player => {
-        const playerView = gameManager.getPlayerView(result.game.id, player.id);
-        if (playerView) {
-          io.to(player.id).emit('game-state', { gameState: playerView });
-        }
-      });
-
-      io.to(lobby.code).emit('buy-phase-ended');
-      io.to(lobby.code).emit('card-drawn', { playerId: socket.id, fromDeck: false });
-      io.to(lobby.code).emit('turn-update', {
-        currentPlayerId: result.game.currentPlayerId,
-        turnPhase: result.game.turnPhase
-      });
-    } else {
-      // Normal draw phase
-      const result = gameManager.drawFromDiscard(game.id, socket.id);
-      if (!result) {
-        socket.emit('error', 'Cannot draw from discard right now');
-        return;
-      }
-
-      // Broadcast to all players
-      lobby.players.forEach(player => {
-        const playerView = gameManager.getPlayerView(result.game.id, player.id);
-        if (playerView) {
-          io.to(player.id).emit('game-state', { gameState: playerView });
-        }
-      });
-
-      io.to(lobby.code).emit('card-drawn', { playerId: socket.id, fromDeck: false });
-      io.to(lobby.code).emit('turn-update', {
-        currentPlayerId: result.game.currentPlayerId,
-        turnPhase: result.game.turnPhase
-      });
-    }
-  });
-
-  // Want to buy the discard
-  socket.on('want-to-buy', () => {
-    const lobby = lobbyManager.getLobbyByPlayerId(socket.id);
-    if (!lobby) return;
-
-    const game = gameManager.getGameByCode(lobby.code);
-    if (!game) return;
-
-    const result = gameManager.requestBuy(game.id, socket.id);
-    if (!result || !result.success) {
-      socket.emit('error', result?.error || 'Cannot buy');
+    const result = gameManager.drawFromDiscard(game.id, socket.id);
+    if (!result) {
+      socket.emit('error', 'Cannot draw from discard right now');
       return;
     }
 
-    // Notify everyone
-    io.to(lobby.code).emit('buy-request', { playerId: socket.id });
-
-    // If someone wants it in simultaneous mode or sequential and they're asked, complete the buy
-    if (game.buyPhase?.buyerPlayerId === socket.id) {
-      const buyResult = gameManager.completeBuy(game.id, socket.id);
-      if (buyResult) {
-        // Broadcast updated game state
-        lobby.players.forEach(player => {
-          const playerView = gameManager.getPlayerView(buyResult.game.id, player.id);
-          if (playerView) {
-            io.to(player.id).emit('game-state', { gameState: playerView });
-          }
-        });
-
-        io.to(lobby.code).emit('buy-completed', { 
-          playerId: socket.id, 
-          card: buyResult.card,
-          extraCards: 2
-        });
-
-        // End buy phase and move to next player
-        const endResult = gameManager.endBuyPhase(game.id, null);
-        if (endResult) {
-          io.to(lobby.code).emit('buy-phase-ended');
-          io.to(lobby.code).emit('turn-update', {
-            currentPlayerId: endResult.game.currentPlayerId,
-            turnPhase: endResult.game.turnPhase
-          });
-        }
+    // Broadcast to all players
+    lobby.players.forEach(player => {
+      const playerView = gameManager.getPlayerView(result.game.id, player.id);
+      if (playerView) {
+        io.to(player.id).emit('game-state', { gameState: playerView });
       }
-    }
-  });
+    });
 
-  // Decline to buy
-  socket.on('decline-buy', () => {
-    const lobby = lobbyManager.getLobbyByPlayerId(socket.id);
-    if (!lobby) return;
-
-    const game = gameManager.getGameByCode(lobby.code);
-    if (!game) return;
-
-    const result = gameManager.declineBuy(game.id, socket.id);
-    if (!result) return;
-
-    io.to(lobby.code).emit('buy-declined', { playerId: socket.id });
-
-    // If sequential mode and we've gone around, end buy phase
-    const nextPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-    if (game.buyPhase && game.buyPhase.askedPlayerIndex === nextPlayerIndex) {
-      const endResult = gameManager.endBuyPhase(game.id, null);
-      if (endResult) {
-        io.to(lobby.code).emit('buy-phase-ended');
-        
-        // Broadcast updated game state
-        lobby.players.forEach(player => {
-          const playerView = gameManager.getPlayerView(endResult.game.id, player.id);
-          if (playerView) {
-            io.to(player.id).emit('game-state', { gameState: playerView });
-          }
-        });
-
-        io.to(lobby.code).emit('turn-update', {
-          currentPlayerId: endResult.game.currentPlayerId,
-          turnPhase: endResult.game.turnPhase
-        });
-      }
-    } else if (game.settings.buyMode === 'sequential' && game.buyPhase) {
-      // Ask next player - broadcast to everyone so they can see who's being asked
-      const askingPlayer = game.players[game.buyPhase.askedPlayerIndex];
-      
-      // Broadcast updated game state first
-      lobby.players.forEach(player => {
-        const playerView = gameManager.getPlayerView(game.id, player.id);
-        if (playerView) {
-          io.to(player.id).emit('game-state', { gameState: playerView });
-        }
-      });
-      
-      io.to(lobby.code).emit('buy-phase-started', { 
-        askingPlayerId: askingPlayer.id,
-        timeLimit: game.settings.buyTimeLimit
-      });
-    }
+    io.to(lobby.code).emit('card-drawn', { playerId: socket.id, fromDeck: false });
+    io.to(lobby.code).emit('turn-update', {
+      currentPlayerId: result.game.currentPlayerId,
+      turnPhase: result.game.turnPhase
+    });
   });
 
   // Add card to existing meld
@@ -474,82 +332,21 @@ io.on('connection', (socket) => {
         }
       }, 3000); // 3 second delay
     } else {
-      // Normal discard - start buy phase!
+      // Normal discard - move to next player
       io.to(lobby.code).emit('card-discarded', { playerId: socket.id, card: result.card });
 
-      const buyGame = gameManager.startBuyPhase(result.game.id);
-      if (buyGame) {
-        // Broadcast updated game state
-        lobby.players.forEach(player => {
-          const playerView = gameManager.getPlayerView(buyGame.id, player.id);
-          if (playerView) {
-            io.to(player.id).emit('game-state', { gameState: playerView });
-          }
-        });
-
-        const nextPlayerIndex = (buyGame.currentPlayerIndex + 1) % buyGame.players.length;
-        const nextPlayer = buyGame.players[nextPlayerIndex];
-
-        // Broadcast buy phase start to EVERYONE so all can see the UI
-        if (buyGame.settings.buyMode === 'sequential') {
-          // In sequential, show who's being asked
-          io.to(lobby.code).emit('buy-phase-started', {
-            askingPlayerId: nextPlayer.id,
-            timeLimit: buyGame.settings.buyTimeLimit
-          });
-        } else {
-          // Simultaneous - everyone can try
-          io.to(lobby.code).emit('buy-phase-started', {
-            timeLimit: buyGame.settings.buyTimeLimit
-          });
+      // Broadcast updated game state
+      lobby.players.forEach(player => {
+        const playerView = gameManager.getPlayerView(result.game.id, player.id);
+        if (playerView) {
+          io.to(player.id).emit('game-state', { gameState: playerView });
         }
+      });
 
-        io.to(lobby.code).emit('turn-update', {
-          currentPlayerId: buyGame.currentPlayerId,
-          turnPhase: buyGame.turnPhase
-        });
-
-        // Auto-end buy phase after timeout
-        setTimeout(() => {
-          const currentGame = gameManager.getGameByCode(lobby.code);
-          if (currentGame && currentGame.turnPhase === 'buy') {
-            // Check if anyone bought in simultaneous mode
-            if (currentGame.settings.buyMode === 'simultaneous' && currentGame.buyPhase?.buyerPlayerId) {
-              const buyerId = currentGame.buyPhase.buyerPlayerId;
-              const buyResult = gameManager.completeBuy(currentGame.id, buyerId);
-              if (buyResult) {
-                lobby.players.forEach(player => {
-                  const playerView = gameManager.getPlayerView(buyResult.game.id, player.id);
-                  if (playerView) {
-                    io.to(player.id).emit('game-state', { gameState: playerView });
-                  }
-                });
-                io.to(lobby.code).emit('buy-completed', {
-                  playerId: buyerId,
-                  card: buyResult.card,
-                  extraCards: 2
-                });
-              }
-            }
-
-            // End buy phase
-            const endResult = gameManager.endBuyPhase(currentGame.id, null);
-            if (endResult) {
-              io.to(lobby.code).emit('buy-phase-ended');
-              lobby.players.forEach(player => {
-                const playerView = gameManager.getPlayerView(endResult.game.id, player.id);
-                if (playerView) {
-                  io.to(player.id).emit('game-state', { gameState: playerView });
-                }
-              });
-              io.to(lobby.code).emit('turn-update', {
-                currentPlayerId: endResult.game.currentPlayerId,
-                turnPhase: endResult.game.turnPhase
-              });
-            }
-          }
-        }, buyGame.settings.buyTimeLimit * 1000);
-      }
+      io.to(lobby.code).emit('turn-update', {
+        currentPlayerId: result.game.currentPlayerId,
+        turnPhase: result.game.turnPhase
+      });
     }
   });
 

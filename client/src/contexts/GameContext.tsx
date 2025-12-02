@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { GameState, Card, BuyMode } from '@shanghairummy/shared';
+import type { GameState, Card } from '@shanghairummy/shared';
 import { useSocket } from './SocketContext';
 import { useLobby } from './LobbyContext';
 import { useNavigation } from './NavigationContext';
@@ -14,19 +14,14 @@ interface GameContextType {
   canPlace: boolean;
   canDiscard: boolean;
   isDealer: boolean;
-  inBuyPhase: boolean;
-  isMyBuyTurn: boolean; // Am I next to pick/buy?
-  buysRemaining: number;
   drawFromDeck: () => void;
   drawFromDiscard: () => void;
   placeContract: (groups: Card[][]) => void;
   discardCard: (cardId: string) => void;
-  wantToBuy: () => void;
-  declineBuy: () => void;
   addToMeld: (targetPlayerId: string, meldIndex: number, cardId: string) => void;
   setDealersChoice: (choice: 'books' | 'runs') => void;
   endGameEarly: () => void;
-  startGame: (settings?: { buyMode: BuyMode; buyTimeLimit: number }) => void;
+  startGame: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -41,10 +36,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const myPlayer = gameState?.players.find(p => p.id === myPlayerId);
   const myHand = myPlayer?.hand || [];
   const isMyTurn = gameState?.currentPlayerId === myPlayerId;
-  const inBuyPhase = gameState?.turnPhase === 'buy';
-  const nextPlayerIndex = gameState ? (gameState.currentPlayerIndex + 1) % gameState.players.length : -1;
-  const isMyBuyTurn = gameState?.players[nextPlayerIndex]?.id === myPlayerId;
-  const buysRemaining = myPlayer ? 3 - myPlayer.buysUsed : 0;
   const canDraw = isMyTurn && gameState?.turnPhase === 'draw';
   const canPlace = isMyTurn && gameState?.turnPhase === 'place';
   const canDiscard = isMyTurn && (gameState?.turnPhase === 'place' || gameState?.turnPhase === 'discard');
@@ -103,29 +94,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       toast.success(`${player?.name || 'Player'} placed their contract!`);
     });
 
-    // Buy phase events
-    socket.on('buy-phase-started', ({ askingPlayerId, timeLimit }) => {
-      console.log(`🛒 Buy phase started, asking player ${askingPlayerId || 'all'}, time limit: ${timeLimit}s`);
-    });
-
-    socket.on('buy-request', ({ playerId }) => {
-      const player = gameState?.players.find(p => p.id === playerId);
-      toast(`${player?.name || 'Player'} wants to buy!`, { icon: '🛒' });
-    });
-
-    socket.on('buy-completed', ({ playerId, card, extraCards }) => {
-      const player = gameState?.players.find(p => p.id === playerId);
-      toast.success(`${player?.name || 'Player'} bought ${card.rank} of ${card.suit} (+${extraCards} from deck)`);
-    });
-
-    socket.on('buy-declined', ({ playerId }) => {
-      console.log(`🛒 ${playerId} declined buy`);
-    });
-
-    socket.on('buy-phase-ended', () => {
-      console.log('🛒 Buy phase ended');
-    });
-
     socket.on('card-added-to-meld', ({ playerId, targetPlayerId }) => {
       const player = gameState?.players.find(p => p.id === playerId);
       const target = gameState?.players.find(p => p.id === targetPlayerId);
@@ -165,11 +133,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('card-drawn');
       socket.off('card-discarded');
       socket.off('contract-placed');
-      socket.off('buy-phase-started');
-      socket.off('buy-request');
-      socket.off('buy-completed');
-      socket.off('buy-declined');
-      socket.off('buy-phase-ended');
       socket.off('card-added-to-meld');
       socket.off('round-ended');
       socket.off('next-round-starting');
@@ -178,7 +141,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [socket, gameState]);
 
-  const startGame = (settings?: { buyMode: BuyMode; buyTimeLimit: number }) => {
+  const startGame = () => {
     if (!socket) {
       console.error('Socket not connected');
       toast.error('Not connected to server');
@@ -190,8 +153,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
     console.log('Starting game - Socket ID:', socket.id, 'Host ID:', lobby.hostId);
-    // Remove the client-side host check since the server will validate
-    socket.emit('start-game', settings || { buyMode: 'sequential', buyTimeLimit: 30 });
+    socket.emit('start-game');
   };
 
   const drawFromDeck = () => {
@@ -225,16 +187,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
     socket.emit('place-contract', { groups });
-  };
-
-  const wantToBuy = () => {
-    if (!socket) return;
-    socket.emit('want-to-buy');
-  };
-
-  const declineBuy = () => {
-    if (!socket) return;
-    socket.emit('decline-buy');
   };
 
   const addToMeld = (targetPlayerId: string, meldIndex: number, cardId: string) => {
@@ -273,15 +225,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         canPlace,
         canDiscard,
         isDealer,
-        inBuyPhase,
-        isMyBuyTurn,
-        buysRemaining,
         drawFromDeck,
         drawFromDiscard,
         placeContract,
         discardCard,
-        wantToBuy,
-        declineBuy,
         addToMeld,
         setDealersChoice,
         endGameEarly,

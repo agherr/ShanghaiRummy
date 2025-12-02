@@ -2,20 +2,16 @@ import { useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useLobby } from '../contexts/LobbyContext';
 import { useGame } from '../contexts/GameContext';
-import type { BuyMode } from '@shanghairummy/shared';
 
 function Lobby() {
     const { goToLanding } = useNavigation();
     const { lobby, isHost, leaveLobby, kickPlayer, disbandLobby } = useLobby();
     const { startGame } = useGame();
     const [copiedCode, setCopiedCode] = useState(false);
-    const [buyMode, setBuyMode] = useState<BuyMode>('sequential');
-    const [buyTimeLimit, setBuyTimeLimit] = useState(30);
 
     const handleStartGame = () => {
         if (isHost) {
-            startGame({ buyMode, buyTimeLimit });
-            // Don't navigate yet - let GameContext handle navigation when game-starting event is received
+            startGame();
         }
     };
 
@@ -107,69 +103,6 @@ function Lobby() {
                         ))}
                     </div>
                 </div>
-
-                {/* Game Settings */}
-                {isHost && (
-                    <div className='mb-6 p-4 bg-gray-50 rounded-lg'>
-                        <h3 className='text-lg font-semibold text-gray-700 mb-4'>Game Settings</h3>
-                        
-                        <div className='space-y-4'>
-                            {/* Buy Mode */}
-                            <div>
-                                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                                    Buy Phase Mode
-                                </label>
-                                <div className='flex gap-3'>
-                                    <button
-                                        onClick={() => setBuyMode('sequential')}
-                                        className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                                            buyMode === 'sequential'
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400'
-                                        }`}
-                                    >
-                                        Sequential
-                                    </button>
-                                    <button
-                                        onClick={() => setBuyMode('simultaneous')}
-                                        className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                                            buyMode === 'simultaneous'
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400'
-                                        }`}
-                                    >
-                                        Simultaneous
-                                    </button>
-                                </div>
-                                <p className='text-xs text-gray-500 mt-1'>
-                                    {buyMode === 'sequential' 
-                                        ? 'Players are asked one-by-one to buy the discard' 
-                                        : 'All players see the discard at once, first response wins'}
-                                </p>
-                            </div>
-
-                            {/* Time Limit */}
-                            <div>
-                                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                                    Buy Phase Time Limit: {buyTimeLimit}s
-                                </label>
-                                <input
-                                    type='range'
-                                    min='10'
-                                    max='60'
-                                    step='5'
-                                    value={buyTimeLimit}
-                                    onChange={(e) => setBuyTimeLimit(Number(e.target.value))}
-                                    className='w-full'
-                                />
-                                <div className='flex justify-between text-xs text-gray-500 mt-1'>
-                                    <span>10s</span>
-                                    <span>60s</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 {/* Actions */}
                 <div className='flex flex-col gap-3'>

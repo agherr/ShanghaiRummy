@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import type { Card, Player } from '@shanghairummy/shared';
 import ContractPlacementModal from './ContractPlacementModal';
@@ -11,44 +11,12 @@ export default function MobileGame() {
     canDraw, 
     canPlace, 
     canDiscard, 
-    inBuyPhase,
-    isMyBuyTurn,
-    buysRemaining,
     drawFromDeck, 
     drawFromDiscard, 
     discardCard, 
-    placeContract,
-    wantToBuy,
-    declineBuy
+    placeContract
   } = useGame();
   const [showPlacementModal, setShowPlacementModal] = useState(false);
-  const [buyPhaseTimeRemaining, setBuyPhaseTimeRemaining] = useState<number | null>(null);
-
-  // Track buy phase countdown
-  useEffect(() => {
-    if (!gameState) return;
-    
-    if (inBuyPhase && gameState.buyPhase) {
-      const timeLimit = gameState.settings?.buyTimeLimit || 30;
-      const elapsed = (Date.now() - gameState.buyPhase.startTime) / 1000;
-      const remaining = Math.max(0, timeLimit - elapsed);
-      setBuyPhaseTimeRemaining(remaining);
-
-      const interval = setInterval(() => {
-        if (!gameState.buyPhase) return;
-        const newElapsed = (Date.now() - gameState.buyPhase.startTime) / 1000;
-        const newRemaining = Math.max(0, timeLimit - newElapsed);
-        setBuyPhaseTimeRemaining(newRemaining);
-        if (newRemaining <= 0) {
-          clearInterval(interval);
-        }
-      }, 100);
-
-      return () => clearInterval(interval);
-    } else {
-      setBuyPhaseTimeRemaining(null);
-    }
-  }, [inBuyPhase, gameState]);
 
   if (!gameState) {
     return <div className="flex items-center justify-center min-h-screen text-white">Loading game...</div>;
@@ -102,12 +70,12 @@ export default function MobileGame() {
   // Render a single card
   const renderCard = (card: Card, onClick?: () => void, selectable = false) => {
     const isClickable = onClick && selectable;
+    const Element = isClickable ? 'button' : 'div';
     
     return (
-      <button
+      <Element
         key={card.id}
         onClick={onClick}
-        disabled={!isClickable}
         className={`
           relative bg-white rounded-lg shadow-md p-2 min-w-[60px] h-[85px]
           flex flex-col items-center justify-between border-2 border-gray-300
@@ -125,7 +93,7 @@ export default function MobileGame() {
         <div className={`text-xs font-semibold ${getCardColor(card.suit)}`}>
           {card.rank}
         </div>
-      </button>
+      </Element>
     );
   };
 
@@ -162,13 +130,6 @@ export default function MobileGame() {
           <div className="flex items-center gap-1">
             <span className="text-gray-500">Cards:</span>
             <span className="font-semibold">{player.cardCount}</span>
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <span className="text-gray-500">Buys:</span>
-            <span className={`font-semibold ${player.buysUsed >= 3 ? 'text-red-500' : 'text-blue-600'}`}>
-              {player.buysUsed}/3
-            </span>
           </div>
           
           {player.hasPlacedContract && (
@@ -243,32 +204,13 @@ export default function MobileGame() {
             <div className="text-center relative">
               {topDiscard ? (
                 <>
-                  <div className="relative">
-                    {/* Glowing animation during buy phase when it's my turn */}
-                    {inBuyPhase && isMyBuyTurn && (
-                      <div className="absolute -inset-2 bg-yellow-400 rounded-xl animate-pulse opacity-75 blur-sm"></div>
-                    )}
-                    {inBuyPhase && !isMyBuyTurn && gameState.buyPhase?.nextPlayerHasPassed && (
-                      <div className="absolute -inset-2 bg-green-400 rounded-xl animate-pulse opacity-50 blur-sm"></div>
-                    )}
-                    
-                    <button
-                      onClick={inBuyPhase ? (isMyBuyTurn ? drawFromDiscard : (gameState.buyPhase?.nextPlayerHasPassed ? wantToBuy : undefined)) : (gameState.discardIsDead ? undefined : drawFromDiscard)}
-                      disabled={(!canDraw && !inBuyPhase) || (canDraw && gameState.discardIsDead) || (inBuyPhase && !isMyBuyTurn && !gameState.buyPhase?.nextPlayerHasPassed)}
-                      className={`relative ${((canDraw && !gameState.discardIsDead) || (inBuyPhase && (isMyBuyTurn || gameState.buyPhase?.nextPlayerHasPassed))) ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                    >
-                      {renderCard(topDiscard, undefined, false)}
-                    </button>
+                  <div
+                    onClick={canDraw ? drawFromDiscard : undefined}
+                    className={`inline-block ${canDraw ? 'cursor-pointer hover:scale-105 transition-transform' : 'cursor-not-allowed opacity-75'}`}
+                  >
+                    {renderCard(topDiscard, undefined, false)}
                   </div>
-                  <div className="text-white text-sm mt-1">
-                    {gameState.discardIsDead && canDraw ? (
-                      <span className="text-red-400">Dead Card ☠️</span>
-                    ) : inBuyPhase ? (
-                      isMyBuyTurn ? 'Take or Pass' : 'Buy?'
-                    ) : (
-                      'Discard'
-                    )}
-                  </div>
+                  <div className="text-white text-sm mt-1">Discard</div>
                 </>
               ) : (
                 <div className="w-20 h-28 bg-blue-700 rounded-lg shadow-lg border-4 border-blue-500 flex items-center justify-center">
@@ -278,80 +220,11 @@ export default function MobileGame() {
             </div>
           </div>
 
-          {/* Buy Phase Indicator */}
-          {inBuyPhase && gameState.buyPhase && (
-            <div className="mt-3 text-center space-y-2">
-              <div className="inline-block bg-purple-500 text-white px-4 py-2 rounded-lg font-bold">
-                🛒 Buy Phase - {buyPhaseTimeRemaining ? `${Math.ceil(buyPhaseTimeRemaining)}s` : '...'}
-              </div>
-              
-              {isMyBuyTurn ? (
-                <div className="text-yellow-300 text-sm font-semibold">
-                  You're next! Take it for FREE or pass
-                </div>
-              ) : !gameState.buyPhase.nextPlayerHasPassed ? (
-                <div className="text-orange-300 text-sm font-semibold">
-                  ⏳ Waiting for next player to decide (they get first dibs)...
-                </div>
-              ) : gameState.settings?.buyMode === 'sequential' ? (
-                <div className="text-white text-sm">
-                  Asking {gameState.players[gameState.buyPhase.askedPlayerIndex]?.name || 'player'}...
-                </div>
-              ) : (
-                <div className="text-green-300 text-sm font-semibold">
-                  First to buy wins! ({buysRemaining}/3 buys left)
-                </div>
-              )}
-
-              {/* Action buttons - only show if it's your turn to act */}
-              {(isMyBuyTurn || 
-                (gameState.buyPhase.nextPlayerHasPassed && gameState.settings?.buyMode === 'simultaneous') ||
-                (gameState.buyPhase.nextPlayerHasPassed && gameState.settings?.buyMode === 'sequential' && 
-                 gameState.buyPhase && 
-                 gameState.players[gameState.buyPhase.askedPlayerIndex]?.id === myPlayer?.id)) && (
-                <div className="flex gap-2 justify-center">
-                  {isMyBuyTurn ? (
-                    <>
-                      <button
-                        onClick={drawFromDiscard}
-                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition-colors"
-                      >
-                        ✓ Take It (Free)
-                      </button>
-                      <button
-                        onClick={declineBuy}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition-colors"
-                      >
-                        ✗ Pass
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={wantToBuy}
-                        disabled={buysRemaining <= 0 || !gameState.buyPhase?.nextPlayerHasPassed}
-                        className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-bold shadow-lg transition-colors"
-                      >
-                        💰 Buy (+2 cards) {buysRemaining > 0 ? `(${buysRemaining}/3)` : '(Max)'}
-                      </button>
-                      <button
-                        onClick={declineBuy}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition-colors"
-                      >
-                        ✗ Pass
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Turn Phase Indicator */}
-          {isMyTurn && !inBuyPhase && (
+          {isMyTurn && (
             <div className="mt-3 text-center">
               <div className="inline-block bg-yellow-400 text-yellow-900 px-4 py-2 rounded-lg font-bold">
-                Your Turn: {turnPhase === 'draw' ? (gameState.discardIsDead ? 'Draw from Deck (Discard is Dead)' : 'Draw a Card') : turnPhase === 'place' ? 'Place Contract or Discard' : 'Discard a Card'}
+                Your Turn: {turnPhase === 'draw' ? 'Draw a Card' : turnPhase === 'place' ? 'Place Contract or Discard' : 'Discard a Card'}
               </div>
             </div>
           )}

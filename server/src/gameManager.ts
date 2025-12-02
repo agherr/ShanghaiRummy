@@ -67,7 +67,7 @@ class GameManager {
   }
 
   // Create a new game
-  createGame(gameCode: string, playerIds: string[], playerNames: string[], settings?: any): GameState {
+  createGame(gameCode: string, playerIds: string[], playerNames: string[]): GameState {
     const roundConfig = ROUNDS[0]; // Start with round 1
     
     const players: Player[] = playerIds.map((id, index) => ({
@@ -78,8 +78,7 @@ class GameManager {
       roundScore: 0,
       cardCount: 0,
       hasPlacedContract: false,
-      placedCards: [],
-      buysUsed: 0
+      placedCards: []
     }));
 
     const game: GameState = {
@@ -96,9 +95,7 @@ class GameManager {
       phase: 'starting',
       turnPhase: 'draw',
       roundConfig,
-      dealersChoice: undefined,
-      settings: settings || { buyMode: 'sequential', buyTimeLimit: 10 },
-      buyPhase: undefined
+      dealersChoice: undefined
     };
 
     this.games.set(game.id, game);
@@ -133,7 +130,6 @@ class GameManager {
       player.hasPlacedContract = false;
       player.placedCards = [];
       player.roundScore = 0;
-      player.buysUsed = 0;
     });
 
     // Flip top card to discard pile (dealer's action)
@@ -147,25 +143,13 @@ class GameManager {
     this.decks.set(gameId, deck);
     game.deckCount = deck.length;
 
-    // Dealer "discards" the flipped card, so current player is still dealer
-    // This will trigger buy phase for the first player (after dealer)
-    game.currentPlayerIndex = game.dealerIndex;
-    game.currentPlayerId = game.players[game.dealerIndex].id;
+    // Set first player (after dealer)
+    game.currentPlayerIndex = (game.dealerIndex + 1) % game.players.length;
+    game.currentPlayerId = game.players[game.currentPlayerIndex].id;
     game.phase = 'playing';
-    game.turnPhase = 'buy'; // Start with buy phase!
-    game.discardIsDead = false; // Not dead yet - no one has bought it
-    
-    // Initialize buy phase for first player
-    const firstPlayerIndex = (game.dealerIndex + 1) % game.players.length;
-    game.buyPhase = {
-      askedPlayerIndex: firstPlayerIndex,
-      respondedPlayers: [],
-      startTime: Date.now(),
-      nextPlayerHasPassed: false // First player must decide
-    };
-    game.discardIsDead = false;
+    game.turnPhase = 'draw';
 
-    console.log(`🎮 Round ${game.round} started. Dealer: ${game.players[game.dealerIndex].name} flipped ${topCard?.rank} of ${topCard?.suit}. Buy phase for: ${game.players[firstPlayerIndex].name}`);
+    console.log(`🎮 Round ${game.round} started. Dealer: ${game.players[game.dealerIndex].name} flipped ${topCard?.rank} of ${topCard?.suit}. First player: ${game.players[game.currentPlayerIndex].name}`);
 
     return game;
   }
@@ -187,7 +171,6 @@ class GameManager {
     player.cardCount = player.hand.length;
     game.deckCount = deck.length;
     game.turnPhase = 'place'; // Move to place phase
-    game.discardIsDead = false; // Clear flag - they've moved past it
 
     return { game, card };
   }
@@ -197,13 +180,6 @@ class GameManager {
     const game = this.games.get(gameId);
     if (!game || game.phase !== 'playing' || game.turnPhase !== 'draw') return null;
     if (game.currentPlayerId !== playerId) return null;
-    
-    // Check if discard is dead (was taken during buy phase)
-    if (game.discardIsDead) {
-      console.log(`❌ ${game.players.find(p => p.id === playerId)?.name} cannot draw from discard - it's a dead card`);
-      return null;
-    }
-    
     if (!game.topDiscard) return null;
 
     const card = game.topDiscard;
@@ -218,7 +194,6 @@ class GameManager {
     game.topDiscard = game.discardPile[game.discardPile.length - 1] || null;
 
     game.turnPhase = 'place'; // Move to place phase
-    game.discardIsDead = false; // Clear flag - they took it
 
     return { game, card };
   }
@@ -476,209 +451,6 @@ class GameManager {
 
   getGame(gameId: string): GameState | undefined {
     return this.games.get(gameId);
-  }
-
-  // Start buy phase after a card is discarded
-  startBuyPhase(gameId: string): GameState | null {
-    const game = this.games.get(gameId);
-    if (!game || !game.topDiscard) return null;
-
-    const nextPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-    
-    game.turnPhase = 'buy';
-    game.buyPhase = {
-      askedPlayerIndex: nextPlayerIndex,
-      respondedPlayers: [],
-      startTime: Date.now(),
-      nextPlayerHasPassed: false // Next player must decide first
-    };
-    game.discardIsDead = false; // Not dead yet, will be set if someone takes it
-
-    console.log(`💰 Buy phase started. Next player (${game.players[nextPlayerIndex].name}) gets first dibs`);
-    return game;
-  }
-
-  // Current player takes discard (free, no buy used)
-  takeDiscardCurrentPlayer(gameId: string, playerId: string): { game: GameState; card: Card } | null {
-    const game = this.games.get(gameId);
-    if (!game || game.turnPhase !== 'buy') return null;
-    
-    const nextPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-    const nextPlayer = game.players[nextPlayerIndex];
-    
-    if (nextPlayer.id !== playerId) return null;
-    if (!game.topDiscard) return null;
-
-    const card = game.topDiscard;
-    nextPlayer.hand.push(card);
-    nextPlayer.cardCount = nextPlayer.hand.length;
-
-    // Remove from discard pile
-    game.discardPile.pop();
-    game.topDiscard = game.discardPile[game.discardPile.length - 1] || null;
-
-    // Move to their turn - skip draw phase since they already took the discard
-    game.currentPlayerIndex = nextPlayerIndex;
-    game.currentPlayerId = nextPlayer.id;
-    game.turnPhase = 'place'; // Skip draw, go straight to place/discard
-    game.buyPhase = undefined;
-    game.discardIsDead = false; // Clear flag - they took it for free
-
-    console.log(`✅ ${nextPlayer.name} took discard (free), skipping draw phase`);
-    return { game, card };
-  }
-
-  // Player wants to buy the discard
-  requestBuy(gameId: string, playerId: string): { game: GameState; success: boolean; error?: string } | null {
-    const game = this.games.get(gameId);
-    if (!game || game.turnPhase !== 'buy' || !game.buyPhase) {
-      return { game: game!, success: false, error: 'Not in buy phase' };
-    }
-
-    const player = game.players.find(p => p.id === playerId);
-    if (!player) return null;
-
-    const nextPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-    const playerIndex = game.players.findIndex(p => p.id === playerId);
-
-    // FIRST DIBS: Next player must decide first before others can buy
-    if (!game.buyPhase.nextPlayerHasPassed && playerIndex !== nextPlayerIndex) {
-      return { game, success: false, error: 'Waiting for next player to decide first' };
-    }
-
-    // Check if player has buys left
-    if (player.buysUsed >= 3) {
-      return { game, success: false, error: 'No buys remaining (max 3 per round)' };
-    }
-
-    // Check if too many cards already
-    if (player.hand.length >= 18) { // 6-12 dealt + max 9 from buys
-      return { game, success: false, error: 'Too many cards (max 18)' };
-    }
-
-    // If simultaneous mode, add to responded players
-    if (game.settings.buyMode === 'simultaneous') {
-      if (!game.buyPhase.respondedPlayers.includes(playerId)) {
-        game.buyPhase.respondedPlayers.push(playerId);
-        game.buyPhase.buyerPlayerId = playerId; // First one wins
-        console.log(`💰 ${player.name} wants to buy (simultaneous - first!)`);
-      }
-      return { game, success: true };
-    }
-
-    // Sequential mode - check if it's their turn to be asked
-    if (game.buyPhase.askedPlayerIndex !== playerIndex) {
-      return { game, success: false, error: 'Not your turn to buy yet' };
-    }
-
-    // They want it - give them the card!
-    game.buyPhase.buyerPlayerId = playerId;
-    console.log(`💰 ${player.name} wants to buy`);
-    return { game, success: true };
-  }
-
-  // Player declines to buy
-  declineBuy(gameId: string, playerId: string): { game: GameState; success: boolean } | null {
-    const game = this.games.get(gameId);
-    if (!game || game.turnPhase !== 'buy' || !game.buyPhase) return null;
-
-    const playerIndex = game.players.findIndex(p => p.id === playerId);
-    if (playerIndex === -1) return null;
-
-    const nextPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-
-    // Mark that next player has passed (opens up buying for others)
-    if (playerIndex === nextPlayerIndex) {
-      game.buyPhase.nextPlayerHasPassed = true;
-      console.log(`✅ Next player passed - others can now buy`);
-    }
-
-    if (game.settings.buyMode === 'sequential') {
-      // Move to next player to ask
-      let nextAskIndex = (game.buyPhase.askedPlayerIndex + 1) % game.players.length;
-
-      // Skip the current player - they shouldn't be asked (it's their upcoming turn)
-      if (nextAskIndex === game.currentPlayerIndex) {
-        nextAskIndex = (nextAskIndex + 1) % game.players.length;
-      }
-
-      // Check if we've completed the loop:
-      // If we've asked the next player (first dibs) AND we're back to them, we're done
-      if (game.buyPhase.nextPlayerHasPassed && nextAskIndex === nextPlayerIndex) {
-        console.log(`🔄 Everyone has been asked, ending buy phase (no one bought)`);
-        return this.endBuyPhase(gameId, null);
-      }
-
-      game.buyPhase.askedPlayerIndex = nextAskIndex;
-      console.log(`➡️  Buy passed to player index ${nextAskIndex} (${game.players[nextAskIndex].name})`);
-    } else {
-      // Simultaneous mode - just track they responded
-      if (!game.buyPhase.respondedPlayers.includes(playerId)) {
-        game.buyPhase.respondedPlayers.push(playerId);
-      }
-    }
-
-    return { game, success: true };
-  }
-
-  // Complete the buy and give cards to buyer
-  completeBuy(gameId: string, buyerPlayerId: string): { game: GameState; card: Card; extraCards: Card[] } | null {
-    const game = this.games.get(gameId);
-    if (!game || !game.topDiscard) return null;
-
-    const buyer = game.players.find(p => p.id === buyerPlayerId);
-    if (!buyer) return null;
-
-    const deck = this.decks.get(gameId);
-    if (!deck || deck.length < 2) return null;
-
-    // Give them the discard
-    const discardCard = game.topDiscard;
-    buyer.hand.push(discardCard);
-
-    // Give them 2 cards from deck
-    const extraCards = [deck.shift()!, deck.shift()!];
-    buyer.hand.push(...extraCards);
-    buyer.cardCount = buyer.hand.length;
-    buyer.buysUsed++;
-
-    // Remove discard from pile - this makes it a "dead card" for next player
-    game.discardPile.pop();
-    game.topDiscard = game.discardPile[game.discardPile.length - 1] || null;
-
-    game.deckCount = deck.length;
-    game.discardIsDead = true; // Mark as dead - next player can't draw it
-
-    console.log(`✅ ${buyer.name} bought card (${buyer.buysUsed}/3 buys used, ${buyer.hand.length} cards), discard is now dead`);
-
-    return { game, card: discardCard, extraCards };
-  }
-
-  // End buy phase (no one bought or timer expired)
-  endBuyPhase(gameId: string, buyerPlayerId: string | null): { game: GameState; success: boolean } | null {
-    const game = this.games.get(gameId);
-    if (!game) return null;
-
-    if (buyerPlayerId) {
-      // Someone bought - complete it first (this sets discardIsDead = true)
-      const result = this.completeBuy(gameId, buyerPlayerId);
-      if (!result) return null;
-    }
-    // If no one bought, discardIsDead stays false - next player can take it as "second chance"
-
-    // Move to next player's turn
-    const nextPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-    game.currentPlayerIndex = nextPlayerIndex;
-    game.currentPlayerId = game.players[nextPlayerIndex].id;
-    
-    // Next player goes to draw phase
-    // If someone bought (discardIsDead = true), they must draw from deck
-    // If no one bought (discardIsDead = false), they can draw from discard as "second chance"
-    game.turnPhase = 'draw';
-    game.buyPhase = undefined;
-
-    console.log(`🎮 Buy phase ended. ${game.players[nextPlayerIndex].name}'s turn (draw phase)`);
-    return { game, success: true };
   }
 
   // Add a card to an existing meld (book or run)

@@ -23,7 +23,6 @@ export interface Player {
   cardCount: number; // Number of cards in hand (for other players)
   hasPlacedContract: boolean; // Whether player has fulfilled their contract this round
   placedCards: Card[][]; // Books and runs that have been placed
-  buysUsed: number; // Number of buys used this round (max 3)
 }
 
 export interface Card {
@@ -46,13 +45,6 @@ export interface RoundConfig {
   contracts: Contract[];
 }
 
-export type BuyMode = 'sequential' | 'simultaneous';
-
-export interface GameSettings {
-  buyMode: BuyMode; // How buy phase works
-  buyTimeLimit: number; // Seconds for buy decision
-}
-
 export interface GameState {
   id: string;
   gameCode: string;
@@ -65,18 +57,9 @@ export interface GameState {
   topDiscard: Card | null; // Top card of discard pile
   discardPile: Card[]; // Full discard pile (for visibility)
   phase: 'starting' | 'playing' | 'round-end' | 'finished';
-  turnPhase: 'buy' | 'draw' | 'place' | 'discard'; // Current phase of the turn
+  turnPhase: 'draw' | 'place' | 'discard'; // Current phase of the turn
   roundConfig: RoundConfig;
   dealersChoice?: 'books' | 'runs'; // For round 7 only
-  settings: GameSettings;
-  buyPhase?: {
-    askedPlayerIndex: number; // Current player being asked (sequential mode)
-    respondedPlayers: string[]; // Players who responded (simultaneous mode)
-    buyerPlayerId?: string; // Player who bought the card
-    startTime: number; // Timestamp when buy phase started
-    nextPlayerHasPassed: boolean; // True when next player has declined - others can now buy
-  };
-  discardIsDead?: boolean; // True if discard was taken during buy phase (can't draw from discard)
 }
 
 export interface GameAction {
@@ -97,12 +80,7 @@ export interface ServerToClientEvents {
   'game-starting': () => void;
   'game-started': (data: { gameState: GameState }) => void;
   'game-state': (data: { gameState: GameState }) => void;
-  'turn-update': (data: { currentPlayerId: string; turnPhase: 'buy' | 'draw' | 'place' | 'discard' }) => void;
-  'buy-phase-started': (data: { askingPlayerId?: string; timeLimit: number }) => void; // sequential: specific player, simultaneous: all at once
-  'buy-request': (data: { playerId: string }) => void; // Someone wants to buy
-  'buy-completed': (data: { playerId: string; card: Card; extraCards: number }) => void;
-  'buy-declined': (data: { playerId: string }) => void;
-  'buy-phase-ended': () => void;
+  'turn-update': (data: { currentPlayerId: string; turnPhase: 'draw' | 'place' | 'discard' }) => void;
   'card-drawn': (data: { playerId: string; fromDeck: boolean }) => void;
   'card-discarded': (data: { playerId: string; card: Card }) => void;
   'contract-placed': (data: { playerId: string; groups: Card[][] }) => void;
@@ -130,9 +108,7 @@ export interface ClientToServerEvents {
   'leave-lobby': () => void;
   'kick-player': (playerId: string) => void;
   'disband-lobby': () => void;
-  'start-game': (settings?: GameSettings) => void;
-  'want-to-buy': () => void; // Player wants to buy the discard
-  'decline-buy': () => void; // Player doesn't want to buy
+  'start-game': () => void;
   'draw-from-deck': () => void;
   'draw-from-discard': () => void;
   'place-contract': (data: { groups: Card[][] }) => void; // Place books/runs
