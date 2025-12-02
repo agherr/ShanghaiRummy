@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "vercel-build": "cd .. && pnpm install && pnpm --filter @shanghairummy/shared build && pnpm --filter @shanghairummy/client build"
   },
   "dependencies": {
     "@shanghairummy/shared": "workspace:*",
