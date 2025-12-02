@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": {
+    "node": "20",
+    "pnpm": "9"
+  },
+  "steps": {
+    "install": {
+      "commands": [
+        { "cmd": "cd .. && pnpm install --frozen-lockfile", "customName": "Install dependencies" }
+      ]
+    },
+    "build": {
+      "inputs": [{ "step": "install" }],
+      "commands": [
+        { "cmd": "cd .. && pnpm --filter @shanghairummy/shared build", "customName": "Build shared package" },
+        { "cmd": "cd .. && pnpm --filter @shanghairummy/server build", "customName": "Build server" }
+      ]
+    }
+  },
+  "deploy": {
+    "inputs": [{ "step": "build", "include": ["."] }],
+    "startCommand": "node dist/index.js"
+  }
+}
