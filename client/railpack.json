@@ -8,6 +8,11 @@
   "steps": {
     "install": {
       "commands": [
+        { "src": "package.json", "dest": "package.json" },
+        { "src": "pnpm-lock.yaml", "dest": "pnpm-lock.yaml" },
+        { "src": "pnpm-workspace.yaml", "dest": "pnpm-workspace.yaml" },
+        { "src": "shared", "dest": "shared" },
+        { "src": "client", "dest": "client" },
         { "cmd": "pnpm install --frozen-lockfile", "customName": "Install dependencies" }
       ]
     },
