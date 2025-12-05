@@ -174,7 +174,7 @@ export default function MobileGame() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-700 flex flex-col">
+    <div className={`min-h-screen ${theme.bg} flex flex-col`}>
       {/* Contract Placement Modal */}
       {showPlacementModal && (
         <ContractPlacementModal
