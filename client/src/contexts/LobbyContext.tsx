@@ -12,6 +12,7 @@ interface LobbyContextType {
   leaveLobby: () => void;
   kickPlayer: (playerId: string) => void;
   disbandLobby: () => void;
+  changeName: (newName: string) => void;
 }
 
 const LobbyContext = createContext<LobbyContextType | undefined>(undefined);
@@ -80,6 +81,12 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
       toast.error(`You were kicked: ${reason}`);
     });
 
+    // Player name changed
+    socket.on('player-name-changed', ({ playerId, newName }) => {
+      console.log('Player name changed:', playerId, newName);
+      toast.success(`Player changed name to ${newName}`);
+    });
+
     // Lobby disbanded
     socket.on('lobby-disbanded', () => {
       console.log('Lobby disbanded');
@@ -99,6 +106,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
       socket.off('player-joined-lobby');
       socket.off('player-left-lobby');
       socket.off('player-kicked');
+      socket.off('player-name-changed');
       socket.off('lobby-disbanded');
       socket.off('error');
     };
@@ -145,6 +153,19 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
     setLobby(null);
   };
 
+  const changeName = (newName: string) => {
+    if (!socket) {
+      console.error('Socket not connected');
+      toast.error('Not connected to server');
+      return;
+    }
+    if (!newName || newName.trim().length < 1) {
+      toast.error('Name must be at least 1 character');
+      return;
+    }
+    socket.emit('change-name', newName.trim());
+  };
+
   return (
     <LobbyContext.Provider
       value={{
@@ -155,6 +176,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
         leaveLobby,
         kickPlayer,
         disbandLobby,
+        changeName,
       }}
     >
       {children}

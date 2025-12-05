@@ -113,6 +113,19 @@ io.on('connection', (socket) => {
     io.to(code).emit('lobby-disbanded');
   });
 
+  // Change player name
+  socket.on('change-name', (newName: string) => {
+    const lobby = lobbyManager.changeName(socket.id, newName);
+    
+    if (!lobby) {
+      socket.emit('error', 'Failed to change name');
+      return;
+    }
+
+    io.to(lobby.code).emit('player-name-changed', { playerId: socket.id, newName });
+    io.to(lobby.code).emit('lobby-updated', { lobby });
+  });
+
   // Start game (host only)
   socket.on('start-game', () => {
     console.log('🎮 Start game requested by:', socket.id);

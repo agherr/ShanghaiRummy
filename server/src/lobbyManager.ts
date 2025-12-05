@@ -164,6 +164,33 @@ class LobbyManager {
     return code;
   }
 
+  changeName(playerId: string, newName: string): Lobby | null {
+    const code = this.playerToLobby.get(playerId);
+    
+    if (!code) {
+      return null;
+    }
+
+    const lobby = this.lobbies.get(code);
+    if (!lobby) {
+      return null;
+    }
+
+    const player = lobby.players.find(p => p.id === playerId);
+    if (!player) {
+      return null;
+    }
+
+    // Validate name (at least 1 character)
+    if (!newName || newName.trim().length < 1) {
+      return null;
+    }
+
+    player.name = newName.trim();
+    console.log(`✏️  Player ${playerId} changed name to ${player.name}`);
+    return lobby;
+  }
+
   getLobby(code: string): Lobby | undefined {
     return this.lobbies.get(code.toUpperCase());
   }

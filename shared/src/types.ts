@@ -76,6 +76,7 @@ export interface ServerToClientEvents {
   'player-joined-lobby': (data: { player: LobbyPlayer }) => void;
   'player-left-lobby': (data: { playerId: string }) => void;
   'player-kicked': (data: { reason: string }) => void;
+  'player-name-changed': (data: { playerId: string; newName: string }) => void;
   'lobby-disbanded': () => void;
   'game-starting': () => void;
   'game-started': (data: { gameState: GameState }) => void;
@@ -108,6 +109,7 @@ export interface ClientToServerEvents {
   'leave-lobby': () => void;
   'kick-player': (playerId: string) => void;
   'disband-lobby': () => void;
+  'change-name': (newName: string) => void;
   'start-game': () => void;
   'draw-from-deck': () => void;
   'draw-from-discard': () => void;

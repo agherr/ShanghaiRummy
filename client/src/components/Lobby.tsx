@@ -2,12 +2,16 @@ import { useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useLobby } from '../contexts/LobbyContext';
 import { useGame } from '../contexts/GameContext';
+import { useSocket } from '../contexts/SocketContext';
 
 function Lobby() {
     const { goToLanding } = useNavigation();
-    const { lobby, isHost, leaveLobby, kickPlayer, disbandLobby } = useLobby();
+    const { lobby, isHost, leaveLobby, kickPlayer, disbandLobby, changeName } = useLobby();
     const { startGame } = useGame();
+    const { socket } = useSocket();
     const [copiedCode, setCopiedCode] = useState(false);
+    const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+    const [editName, setEditName] = useState('');
 
     const handleStartGame = () => {
         if (isHost) {
@@ -36,6 +40,24 @@ function Lobby() {
         if (isHost) {
             kickPlayer(playerId);
         }
+    };
+
+    const handleEditClick = (playerId: string, currentName: string) => {
+        setEditingPlayerId(playerId);
+        setEditName(currentName);
+    };
+
+    const handleSaveName = () => {
+        if (editName.trim().length >= 1) {
+            changeName(editName);
+            setEditingPlayerId(null);
+            setEditName('');
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setEditingPlayerId(null);
+        setEditName('');
     };
 
     if (!lobby) {
@@ -76,19 +98,61 @@ function Lobby() {
                                 key={player.id}
                                 className='flex items-center justify-between bg-gray-50 p-4 rounded-lg'
                             >
-                                <div className='flex items-center gap-3'>
+                                <div className='flex items-center gap-3 flex-1'>
                                     <div className='w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold'>
                                         {player.name.charAt(0).toUpperCase()}
                                     </div>
-                                    <div>
-                                        <div className='font-semibold text-gray-800'>
-                                            {player.name}
-                                            {player.isHost && (
-                                                <span className='ml-2 text-xs bg-yellow-400 text-yellow-900 px-2 py-1 rounded font-bold'>
-                                                    HOST
+                                    <div className='flex-1'>
+                                        {editingPlayerId === player.id ? (
+                                            <div className='flex items-center gap-2'>
+                                                <input
+                                                    type='text'
+                                                    value={editName}
+                                                    onChange={(e) => setEditName(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleSaveName();
+                                                        if (e.key === 'Escape') handleCancelEdit();
+                                                    }}
+                                                    className='border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+                                                    autoFocus
+                                                    maxLength={20}
+                                                />
+                                                <button
+                                                    onClick={handleSaveName}
+                                                    className='bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs'
+                                                >
+                                                    ✓
+                                                </button>
+                                                <button
+                                                    onClick={handleCancelEdit}
+                                                    className='bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs'
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className='flex items-center gap-2'>
+                                                <span className='font-semibold text-gray-800'>
+                                                    {player.name}
                                                 </span>
-                                            )}
-                                        </div>
+                                                {player.id === socket?.id && (
+                                                    <button
+                                                        onClick={() => handleEditClick(player.id, player.name)}
+                                                        className='text-gray-500 hover:text-blue-600 transition-colors'
+                                                        title='Edit name'
+                                                    >
+                                                        <svg xmlns='http://www.w3.org/2000/svg' className='h-4 w-4' viewBox='0 0 20 20' fill='currentColor'>
+                                                            <path d='M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z' />
+                                                        </svg>
+                                                    </button>
+                                                )}
+                                                {player.isHost && (
+                                                    <span className='text-xs bg-yellow-400 text-yellow-900 px-2 py-1 rounded font-bold'>
+                                                        HOST
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 {isHost && !player.isHost && (
