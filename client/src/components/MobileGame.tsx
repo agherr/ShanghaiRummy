@@ -11,9 +11,15 @@ export default function MobileGame() {
     isMyTurn, 
     canDraw, 
     canPlace, 
-    canDiscard, 
+    canDiscard,
+    isBuyingPhase,
+    isMyBuyTurn,
+    canBuy,
+    takeDiscard,
+    passDiscard,
+    buyCard,
+    passBuy,
     drawFromDeck, 
-    drawFromDiscard, 
     discardCard, 
     placeContract
   } = useGame();
@@ -134,6 +140,11 @@ export default function MobileGame() {
             <span className="font-semibold">{player.cardCount}</span>
           </div>
           
+          <div className="flex items-center gap-1">
+            <span className="text-gray-500">Buys:</span>
+            <span className="font-semibold">{player.buysThisRound}/3</span>
+          </div>
+          
           {player.hasPlacedContract && (
             <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">
               ✓ Contract Down
@@ -187,18 +198,23 @@ export default function MobileGame() {
           <div className="flex items-center justify-center gap-6">
             {/* Deck */}
             <div className="text-center">
-              <button
-                onClick={drawFromDeck}
-                disabled={!canDraw}
+              <div
+                onClick={
+                  // Can draw from deck if: it's your turn, draw phase, not buying phase, and (no discard exists OR buying phase already happened OR discard is dead)
+                  (canDraw && !isBuyingPhase && (!topDiscard || gameState.hasPassedDiscard || gameState.discardIsDead)) ? drawFromDeck : undefined
+                }
                 className={`
-                  w-20 h-28 ${theme.bg} rounded-lg shadow-lg
-                  border-4 ${theme.border} flex items-center justify-center
-                  ${canDraw ? `${theme.hover} cursor-pointer` : 'opacity-50 cursor-not-allowed'}
+                  w-20 h-28 rounded-lg shadow-lg
+                  border-4 flex items-center justify-center
+                  relative
+                  ${canDraw && !isBuyingPhase && (!topDiscard || gameState.hasPassedDiscard || gameState.discardIsDead)
+                    ? `${theme.bg} ${theme.border} cursor-pointer hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.5)]` 
+                    : `${theme.bg} ${theme.border} opacity-75`}
                   transition-all duration-150
                 `}
               >
                 <span className="text-white text-4xl">🂠</span>
-              </button>
+              </div>
               <div className="text-white text-sm mt-1">{deckCount} cards</div>
             </div>
 
@@ -206,16 +222,37 @@ export default function MobileGame() {
             <div className="text-center relative">
               {topDiscard ? (
                 <>
-                  <div
-                    onClick={canDraw ? drawFromDiscard : undefined}
-                    className={`inline-block ${canDraw ? 'cursor-pointer hover:scale-105 transition-transform' : 'cursor-not-allowed opacity-75'}`}
+                  <div 
+                    onClick={
+                      // Can't click if discard is dead
+                      gameState.discardIsDead ? undefined :
+                      // During buying phase - buyer can click to buy
+                      (isBuyingPhase && isMyBuyTurn && canBuy) ? buyCard :
+                      // During draw phase - current player can take discard if not dead
+                      (isMyTurn && canDraw && !isBuyingPhase) ? takeDiscard :
+                      undefined
+                    }
+                    className={`
+                      inline-block relative
+                      ${!gameState.discardIsDead && ((isBuyingPhase && isMyBuyTurn && canBuy) || (isMyTurn && canDraw && !isBuyingPhase))
+                        ? 'cursor-pointer hover:scale-105 transition-transform shadow-[0_0_20px_rgba(255,215,0,0.7)]'
+                        : ''}
+                    `}
                   >
                     {renderCard(topDiscard, undefined, false)}
+                    {/* Show skull emoji if discard is dead */}
+                    {gameState.discardIsDead && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
+                        <span className="text-5xl">💀</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-white text-sm mt-1">Discard</div>
+                  <div className="text-white text-sm mt-1">
+                    {gameState.discardIsDead ? 'Dead' : 'Discard'}
+                  </div>
                 </>
               ) : (
-                <div className={`w-20 h-28 ${theme.bgLight} rounded-lg shadow-lg border-4 ${theme.border} flex items-center justify-center`}>
+                <div className="w-20 h-28 bg-gray-700 rounded-lg shadow-lg border-4 border-gray-600 flex items-center justify-center">
                   <span className="text-white text-xs">Empty</span>
                 </div>
               )}
@@ -223,10 +260,51 @@ export default function MobileGame() {
           </div>
 
           {/* Turn Phase Indicator */}
-          {isMyTurn && (
+          {isMyTurn && !isBuyingPhase && (
             <div className="mt-3 text-center">
               <div className="inline-block bg-yellow-400 text-yellow-900 px-4 py-2 rounded-lg font-bold">
-                Your Turn: {turnPhase === 'draw' ? 'Draw a Card' : turnPhase === 'place' ? 'Place Contract or Discard' : 'Discard a Card'}
+                {turnPhase === 'draw' 
+                  ? topDiscard
+                    ? gameState.hasPassedDiscard
+                      ? '👆 Click deck or discard to draw'
+                      : '👆 Take the discard or pass to let others buy'
+                    : '👆 Click the deck to draw'
+                  : turnPhase === 'place' 
+                    ? 'Place Contract or Discard' 
+                    : 'Discard a Card'}
+              </div>
+              {/* Pass Button - offer buying to others (only show on initial turn, not after buying phase) */}
+              {canDraw && topDiscard && !gameState.hasPassedDiscard && (
+                <button
+                  onClick={passDiscard}
+                  className="mt-2 bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg font-semibold shadow-lg transition-colors"
+                >
+                  Pass - Let Others Buy
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Buying Phase Indicator */}
+          {isBuyingPhase && isMyBuyTurn && (
+            <div className="mt-3 text-center">
+              <div className="inline-block bg-purple-400 text-purple-900 px-4 py-2 rounded-lg font-bold mb-2">
+                💰 Click the discard to buy ({myPlayer ? 3 - myPlayer.buysThisRound : 0} buys left)
+              </div>
+              <button
+                onClick={passBuy}
+                className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold shadow-lg transition-colors"
+              >
+                Pass
+              </button>
+            </div>
+          )}
+
+          {/* Buying Phase - Waiting Indicator */}
+          {isBuyingPhase && !isMyBuyTurn && (
+            <div className="mt-3 text-center">
+              <div className="inline-block bg-blue-400 text-blue-900 px-4 py-2 rounded-lg font-bold">
+                ⏳ Waiting for {gameState.players.find(p => p.id === gameState.buyingPlayerId)?.name} to decide...
               </div>
             </div>
           )}

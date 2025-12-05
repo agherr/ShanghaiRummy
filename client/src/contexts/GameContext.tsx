@@ -14,8 +14,14 @@ interface GameContextType {
   canPlace: boolean;
   canDiscard: boolean;
   isDealer: boolean;
+  isBuyingPhase: boolean;
+  isMyBuyTurn: boolean;
+  canBuy: boolean;
+  takeDiscard: () => void;
+  passDiscard: () => void;
+  buyCard: () => void;
+  passBuy: () => void;
   drawFromDeck: () => void;
-  drawFromDiscard: () => void;
   placeContract: (groups: Card[][]) => void;
   discardCard: (cardId: string) => void;
   addToMeld: (targetPlayerId: string, meldIndex: number, cardId: string) => void;
@@ -40,6 +46,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const canPlace = isMyTurn && gameState?.turnPhase === 'place';
   const canDiscard = isMyTurn && (gameState?.turnPhase === 'place' || gameState?.turnPhase === 'discard');
   const isDealer = gameState?.dealerIndex === gameState?.players.findIndex(p => p.id === myPlayerId);
+  const isBuyingPhase = gameState?.turnPhase === 'buying';
+  const isMyBuyTurn = isBuyingPhase && gameState?.buyingPlayerId === myPlayerId;
+  const canBuy = isMyBuyTurn && (myPlayer?.buysThisRound ?? 0) < 3;
 
   useEffect(() => {
     if (!socket) return;
@@ -76,6 +85,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
           turnPhase
         };
       });
+    });
+
+    // Buy opportunity notification
+    socket.on('buy-opportunity', ({ buyingPlayerId, canBuy }) => {
+      console.log(`💰 Buy opportunity for ${buyingPlayerId} (canBuy: ${canBuy})`);
+      const buyingPlayer = gameState?.players.find(p => p.id === buyingPlayerId);
+      if (buyingPlayerId === myPlayerId) {
+        if (canBuy) {
+          toast(`Do you want to buy the discard?`, { icon: '💰', duration: 10000 });
+        } else {
+          toast(`You've already bought 3 times this round`, { icon: '🚫', duration: 3000 });
+        }
+      } else {
+        toast(`${buyingPlayer?.name || 'Player'} is deciding whether to buy...`, { icon: '⏳', duration: 3000 });
+      }
+    });
+
+    // Card bought notification
+    socket.on('card-bought', ({ playerId, boughtCard }) => {
+      const player = gameState?.players.find(p => p.id === playerId);
+      toast.success(`${player?.name || 'Player'} bought the ${boughtCard.rank} of ${boughtCard.suit}!`);
     });
 
     // Card drawn notification
@@ -130,6 +160,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game-started');
       socket.off('game-state');
       socket.off('turn-update');
+      socket.off('buy-opportunity');
+      socket.off('card-bought');
       socket.off('card-drawn');
       socket.off('card-discarded');
       socket.off('contract-placed');
@@ -139,7 +171,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game-ended');
       socket.off('error');
     };
-  }, [socket, gameState]);
+  }, [socket, gameState, myPlayerId]);
 
   const startGame = () => {
     if (!socket) {
@@ -156,20 +188,44 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.emit('start-game');
   };
 
+  const takeDiscard = () => {
+    if (!socket || !canDraw || !gameState?.topDiscard) {
+      console.error('Cannot take discard');
+      return;
+    }
+    socket.emit('take-discard');
+  };
+
+  const passDiscard = () => {
+    if (!socket || !canDraw) {
+      console.error('Cannot pass discard');
+      return;
+    }
+    socket.emit('pass-discard');
+  };
+
+  const buyCard = () => {
+    if (!socket || !isMyBuyTurn || !canBuy) {
+      console.error('Cannot buy card');
+      return;
+    }
+    socket.emit('buy-card');
+  };
+
+  const passBuy = () => {
+    if (!socket || !isMyBuyTurn) {
+      console.error('Cannot pass buy');
+      return;
+    }
+    socket.emit('pass-buy');
+  };
+
   const drawFromDeck = () => {
     if (!socket || !canDraw) {
       console.error('Cannot draw from deck');
       return;
     }
     socket.emit('draw-from-deck');
-  };
-
-  const drawFromDiscard = () => {
-    if (!socket || !canDraw || !gameState?.topDiscard) {
-      console.error('Cannot draw from discard');
-      return;
-    }
-    socket.emit('draw-from-discard');
   };
 
   const discardCard = (cardId: string) => {
@@ -225,8 +281,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         canPlace,
         canDiscard,
         isDealer,
+        isBuyingPhase,
+        isMyBuyTurn,
+        canBuy,
+        takeDiscard,
+        passDiscard,
+        buyCard,
+        passBuy,
         drawFromDeck,
-        drawFromDiscard,
         placeContract,
         discardCard,
         addToMeld,

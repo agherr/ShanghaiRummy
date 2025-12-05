@@ -23,6 +23,7 @@ export interface Player {
   cardCount: number; // Number of cards in hand (for other players)
   hasPlacedContract: boolean; // Whether player has fulfilled their contract this round
   placedCards: Card[][]; // Books and runs that have been placed
+  buysThisRound: number; // Number of times bought in this round (max 3)
 }
 
 export interface Card {
@@ -57,9 +58,13 @@ export interface GameState {
   topDiscard: Card | null; // Top card of discard pile
   discardPile: Card[]; // Full discard pile (for visibility)
   phase: 'starting' | 'playing' | 'round-end' | 'finished';
-  turnPhase: 'draw' | 'place' | 'discard'; // Current phase of the turn
+  turnPhase: 'draw' | 'place' | 'discard' | 'buying'; // Current phase of the turn
   roundConfig: RoundConfig;
   dealersChoice?: 'books' | 'runs'; // For round 7 only
+  buyingPlayerId?: string; // Player currently being asked to buy
+  buyingPlayerIndex?: number; // Index of player being asked to buy
+  hasPassedDiscard?: boolean; // Whether current player passed on the discard
+  discardIsDead?: boolean; // Whether the discard pile is "dead" (someone bought it)
 }
 
 export interface GameAction {
@@ -81,8 +86,10 @@ export interface ServerToClientEvents {
   'game-starting': () => void;
   'game-started': (data: { gameState: GameState }) => void;
   'game-state': (data: { gameState: GameState }) => void;
-  'turn-update': (data: { currentPlayerId: string; turnPhase: 'draw' | 'place' | 'discard' }) => void;
+  'turn-update': (data: { currentPlayerId: string; turnPhase: 'draw' | 'place' | 'discard' | 'buying' }) => void;
   'card-drawn': (data: { playerId: string; fromDeck: boolean }) => void;
+  'buy-opportunity': (data: { playerId: string; buyingPlayerId: string; canBuy: boolean }) => void;
+  'card-bought': (data: { playerId: string; boughtCard: Card }) => void;
   'card-discarded': (data: { playerId: string; card: Card }) => void;
   'contract-placed': (data: { playerId: string; groups: Card[][] }) => void;
   'card-added-to-meld': (data: { playerId: string; targetPlayerId: string; meldIndex: number; card: Card }) => void;
@@ -111,8 +118,11 @@ export interface ClientToServerEvents {
   'disband-lobby': () => void;
   'change-name': (newName: string) => void;
   'start-game': () => void;
+  'take-discard': () => void; // Current player takes discard pile top card
+  'pass-discard': () => void; // Current player passes on discard, starts buy phase
+  'buy-card': () => void; // Non-current player buys the discard
+  'pass-buy': () => void; // Non-current player passes on buying
   'draw-from-deck': () => void;
-  'draw-from-discard': () => void;
   'place-contract': (data: { groups: Card[][] }) => void; // Place books/runs
   'add-to-meld': (data: { targetPlayerId: string; meldIndex: number; cardId: string }) => void; // Add card to existing meld
   'discard-card': (cardId: string) => void;

@@ -177,7 +177,155 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Draw from deck
+  // Current player takes discard
+  socket.on('take-discard', () => {
+    const lobby = lobbyManager.getLobbyByPlayerId(socket.id);
+    if (!lobby) return;
+
+    const game = gameManager.getGameByCode(lobby.code);
+    if (!game) return;
+
+    const result = gameManager.takeDiscard(game.id, socket.id);
+    if (!result) {
+      socket.emit('error', 'Cannot take discard right now');
+      return;
+    }
+
+    // Broadcast to all players
+    lobby.players.forEach(player => {
+      const playerView = gameManager.getPlayerView(result.game.id, player.id);
+      if (playerView) {
+        io.to(player.id).emit('game-state', { gameState: playerView });
+      }
+    });
+
+    io.to(lobby.code).emit('card-drawn', { playerId: socket.id, fromDeck: false });
+    io.to(lobby.code).emit('turn-update', { 
+      currentPlayerId: result.game.currentPlayerId, 
+      turnPhase: result.game.turnPhase 
+    });
+  });
+
+  // Current player passes on discard
+  socket.on('pass-discard', () => {
+    const lobby = lobbyManager.getLobbyByPlayerId(socket.id);
+    if (!lobby) return;
+
+    const game = gameManager.getGameByCode(lobby.code);
+    if (!game) return;
+
+    const result = gameManager.passDiscard(game.id, socket.id);
+    if (!result) {
+      socket.emit('error', 'Cannot pass right now');
+      return;
+    }
+
+    // Broadcast updated game state
+    lobby.players.forEach(player => {
+      const playerView = gameManager.getPlayerView(result.game.id, player.id);
+      if (playerView) {
+        io.to(player.id).emit('game-state', { gameState: playerView });
+      }
+    });
+
+    // Notify next buyer
+    if (result.nextBuyerId) {
+      const buyingPlayer = game.players.find(p => p.id === result.nextBuyerId);
+      const canBuy = buyingPlayer && buyingPlayer.buysThisRound < 3;
+      
+      io.to(lobby.code).emit('buy-opportunity', {
+        playerId: socket.id,
+        buyingPlayerId: result.nextBuyerId,
+        canBuy: !!canBuy
+      });
+    }
+
+    io.to(lobby.code).emit('turn-update', {
+      currentPlayerId: result.game.currentPlayerId,
+      turnPhase: result.game.turnPhase
+    });
+  });
+
+  // Non-current player buys card
+  socket.on('buy-card', () => {
+    const lobby = lobbyManager.getLobbyByPlayerId(socket.id);
+    if (!lobby) return;
+
+    const game = gameManager.getGameByCode(lobby.code);
+    if (!game) return;
+
+    const result = gameManager.buyCard(game.id, socket.id);
+    if (!result) {
+      socket.emit('error', 'Cannot buy card right now');
+      return;
+    }
+
+    // Broadcast to all players
+    lobby.players.forEach(player => {
+      const playerView = gameManager.getPlayerView(result.game.id, player.id);
+      if (playerView) {
+        io.to(player.id).emit('game-state', { gameState: playerView });
+      }
+    });
+
+    io.to(lobby.code).emit('card-bought', {
+      playerId: socket.id,
+      boughtCard: result.boughtCard
+    });
+
+    io.to(lobby.code).emit('turn-update', {
+      currentPlayerId: result.game.currentPlayerId,
+      turnPhase: result.game.turnPhase
+    });
+  });
+
+  // Non-current player passes on buying
+  socket.on('pass-buy', () => {
+    const lobby = lobbyManager.getLobbyByPlayerId(socket.id);
+    if (!lobby) return;
+
+    const game = gameManager.getGameByCode(lobby.code);
+    if (!game) return;
+
+    const result = gameManager.passBuy(game.id, socket.id);
+    if (!result) {
+      socket.emit('error', 'Cannot pass buy right now');
+      return;
+    }
+
+    // Broadcast updated game state
+    lobby.players.forEach(player => {
+      const playerView = gameManager.getPlayerView(result.game.id, player.id);
+      if (playerView) {
+        io.to(player.id).emit('game-state', { gameState: playerView });
+      }
+    });
+
+    if (result.shouldResumeDrawPhase) {
+      // All players passed, current player can now take discard or deck
+      io.to(lobby.code).emit('turn-update', {
+        currentPlayerId: result.game.currentPlayerId,
+        turnPhase: result.game.turnPhase
+      });
+    } else if (result.nextBuyerId) {
+      // Ask next player
+      const buyingPlayer = game.players.find(p => p.id === result.nextBuyerId);
+      const canBuy = buyingPlayer && buyingPlayer.buysThisRound < 3;
+      
+      io.to(lobby.code).emit('buy-opportunity', {
+        playerId: result.game.currentPlayerId,
+        buyingPlayerId: result.nextBuyerId,
+        canBuy: !!canBuy
+      });
+
+      io.to(lobby.code).emit('turn-update', {
+        currentPlayerId: result.game.currentPlayerId,
+        turnPhase: result.game.turnPhase
+      });
+    }
+  });
+
+  // Draw from deck (after passing or after someone bought)
   socket.on('draw-from-deck', () => {
     const lobby = lobbyManager.getLobbyByPlayerId(socket.id);
     if (!lobby) return;
@@ -203,35 +351,6 @@ io.on('connection', (socket) => {
     io.to(lobby.code).emit('turn-update', { 
       currentPlayerId: result.game.currentPlayerId, 
       turnPhase: result.game.turnPhase 
-    });
-  });
-
-  // Draw from discard
-  socket.on('draw-from-discard', () => {
-    const lobby = lobbyManager.getLobbyByPlayerId(socket.id);
-    if (!lobby) return;
-
-    const game = gameManager.getGameByCode(lobby.code);
-    if (!game) return;
-
-    const result = gameManager.drawFromDiscard(game.id, socket.id);
-    if (!result) {
-      socket.emit('error', 'Cannot draw from discard right now');
-      return;
-    }
-
-    // Broadcast to all players
-    lobby.players.forEach(player => {
-      const playerView = gameManager.getPlayerView(result.game.id, player.id);
-      if (playerView) {
-        io.to(player.id).emit('game-state', { gameState: playerView });
-      }
-    });
-
-    io.to(lobby.code).emit('card-drawn', { playerId: socket.id, fromDeck: false });
-    io.to(lobby.code).emit('turn-update', {
-      currentPlayerId: result.game.currentPlayerId,
-      turnPhase: result.game.turnPhase
     });
   });
 

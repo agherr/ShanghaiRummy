@@ -78,7 +78,8 @@ class GameManager {
       roundScore: 0,
       cardCount: 0,
       hasPlacedContract: false,
-      placedCards: []
+      placedCards: [],
+      buysThisRound: 0
     }));
 
     const game: GameState = {
@@ -130,6 +131,7 @@ class GameManager {
       player.hasPlacedContract = false;
       player.placedCards = [];
       player.roundScore = 0;
+      player.buysThisRound = 0; // Reset buys for new round
     });
 
     // Flip top card to discard pile (dealer's action)
@@ -154,29 +156,8 @@ class GameManager {
     return game;
   }
 
-  // Draw from deck
-  drawFromDeck(gameId: string, playerId: string): { game: GameState; card: Card } | null {
-    const game = this.games.get(gameId);
-    if (!game || game.phase !== 'playing' || game.turnPhase !== 'draw') return null;
-    if (game.currentPlayerId !== playerId) return null;
-
-    const deck = this.decks.get(gameId);
-    if (!deck || deck.length === 0) return null;
-
-    const card = deck.shift()!;
-    const player = game.players.find(p => p.id === playerId);
-    if (!player) return null;
-
-    player.hand.push(card);
-    player.cardCount = player.hand.length;
-    game.deckCount = deck.length;
-    game.turnPhase = 'place'; // Move to place phase
-
-    return { game, card };
-  }
-
-  // Draw from discard pile
-  drawFromDiscard(gameId: string, playerId: string): { game: GameState; card: Card } | null {
+  // Current player takes the discard pile top card
+  takeDiscard(gameId: string, playerId: string): { game: GameState; card: Card } | null {
     const game = this.games.get(gameId);
     if (!game || game.phase !== 'playing' || game.turnPhase !== 'draw') return null;
     if (game.currentPlayerId !== playerId) return null;
@@ -194,6 +175,124 @@ class GameManager {
     game.topDiscard = game.discardPile[game.discardPile.length - 1] || null;
 
     game.turnPhase = 'place'; // Move to place phase
+    game.discardIsDead = false; // Reset dead flag when taking discard
+
+    return { game, card };
+  }
+
+  // Current player passes on discard - start buying phase
+  passDiscard(gameId: string, playerId: string): { game: GameState; nextBuyerId: string | null } | null {
+    const game = this.games.get(gameId);
+    if (!game || game.phase !== 'playing' || game.turnPhase !== 'draw') return null;
+    if (game.currentPlayerId !== playerId) return null;
+
+    // Mark that current player passed
+    game.hasPassedDiscard = true;
+    
+    // Start buying phase with next player
+    const nextBuyerIndex = (game.currentPlayerIndex + 1) % game.players.length;
+    game.buyingPlayerIndex = nextBuyerIndex;
+    game.buyingPlayerId = game.players[nextBuyerIndex].id;
+    game.turnPhase = 'buying';
+
+    return { game, nextBuyerId: game.buyingPlayerId };
+  }
+
+  // Non-current player buys the discard card
+  buyCard(gameId: string, playerId: string): { game: GameState; boughtCard: Card; extraCards: Card[] } | null {
+    const game = this.games.get(gameId);
+    if (!game || game.phase !== 'playing' || game.turnPhase !== 'buying') return null;
+    if (game.buyingPlayerId !== playerId) return null;
+    if (!game.topDiscard) return null;
+
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) return null;
+
+    // Check if player has already bought 3 times
+    if (player.buysThisRound >= 3) return null;
+
+    const deck = this.decks.get(gameId);
+    if (!deck || deck.length < 2) return null; // Need at least 2 cards in deck
+
+    // Take the discard card
+    const boughtCard = game.topDiscard;
+    player.hand.push(boughtCard);
+
+    // Remove from discard pile
+    game.discardPile.pop();
+    game.topDiscard = game.discardPile[game.discardPile.length - 1] || null;
+
+    // Draw 2 extra cards from deck
+    const extraCards: Card[] = [];
+    for (let i = 0; i < 2 && deck.length > 0; i++) {
+      const card = deck.shift()!;
+      player.hand.push(card);
+      extraCards.push(card);
+    }
+
+    player.cardCount = player.hand.length;
+    player.buysThisRound++;
+    game.deckCount = deck.length;
+
+    // Current player must now draw from deck (discard was bought)
+    game.turnPhase = 'draw';
+    game.buyingPlayerId = undefined;
+    game.buyingPlayerIndex = undefined;
+    // Mark that discard is no longer available (someone bought it)
+    game.hasPassedDiscard = true;
+    game.discardIsDead = true; // Discard pile is now "dead" for this turn
+
+    return { game, boughtCard, extraCards };
+  }
+
+  // Non-current player passes on buying
+  passBuy(gameId: string, playerId: string): { game: GameState; nextBuyerId: string | null; shouldResumeDrawPhase: boolean } | null {
+    const game = this.games.get(gameId);
+    if (!game || game.phase !== 'playing' || game.turnPhase !== 'buying') return null;
+    if (game.buyingPlayerId !== playerId) return null;
+
+    // Move to next player
+    const nextBuyerIndex = (game.buyingPlayerIndex! + 1) % game.players.length;
+
+    // Check if we've gone around the whole table (back to current player)
+    if (nextBuyerIndex === game.currentPlayerIndex) {
+      // All players passed, return to current player's draw phase
+      // Player can now choose deck OR discard (they already passed once, so both options available)
+      game.turnPhase = 'draw';
+      game.buyingPlayerId = undefined;
+      game.buyingPlayerIndex = undefined;
+      // Keep hasPassedDiscard TRUE - this signals they already made initial choice and went through buying phase
+      // But they can now choose either option
+
+      return { game, nextBuyerId: null, shouldResumeDrawPhase: true };
+    }
+
+    // Ask next player
+    game.buyingPlayerIndex = nextBuyerIndex;
+    game.buyingPlayerId = game.players[nextBuyerIndex].id;
+
+    return { game, nextBuyerId: game.buyingPlayerId, shouldResumeDrawPhase: false };
+  }
+
+  // Current player draws from deck (after passing or after someone bought)
+  drawFromDeck(gameId: string, playerId: string): { game: GameState; card: Card } | null {
+    const game = this.games.get(gameId);
+    if (!game || game.phase !== 'playing' || game.turnPhase !== 'draw') return null;
+    if (game.currentPlayerId !== playerId) return null;
+
+    const deck = this.decks.get(gameId);
+    if (!deck || deck.length === 0) return null;
+
+    const card = deck.shift()!;
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) return null;
+
+    player.hand.push(card);
+    player.cardCount = player.hand.length;
+    game.deckCount = deck.length;
+    game.turnPhase = 'place'; // Move to place phase
+    game.hasPassedDiscard = false;
+    game.discardIsDead = false; // Reset dead flag
 
     return { game, card };
   }
@@ -357,6 +456,9 @@ class GameManager {
       game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
       game.currentPlayerId = game.players[game.currentPlayerIndex].id;
       game.turnPhase = 'draw';
+      // Reset flags for the new player's turn - they start fresh
+      game.hasPassedDiscard = false;
+      game.discardIsDead = false;
     }
 
     return { game, card };
