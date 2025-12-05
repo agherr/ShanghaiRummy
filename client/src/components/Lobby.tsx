@@ -81,7 +81,7 @@ function Lobby() {
                         <div className={`text-3xl font-bold ${theme.text} tracking-wider`}>{lobby.code}</div>
                         <button
                             onClick={handleCopyCode}
-                            className={`${theme.bgLight} ${theme.hover} ${theme.text} px-3 py-1 rounded text-sm font-semibold transition-colors`}
+                            className={`${theme.bgLight} ${theme.hover} text-white px-3 py-1 rounded text-sm font-semibold transition-colors`}
                         >
                             {copiedCode ? '✓ Copied!' : 'Copy'}
                         </button>
@@ -149,8 +149,8 @@ function Lobby() {
                                                     </button>
                                                 )}
                                                 {player.isHost && (
-                                                    <span className='text-xs bg-yellow-400 text-yellow-900 px-2 py-1 rounded font-bold'>
-                                                        HOST
+                                                    <span className='text-yellow-500' title='Host'>
+                                                        👑
                                                     </span>
                                                 )}
                                             </div>

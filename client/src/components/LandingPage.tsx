@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useLobby } from '../contexts/LobbyContext';
 import { useTheme } from '../hooks/useTheme';
+import { useSettings } from '../contexts/SettingsContext';
 
 function LandingPage() {
     const { goToTutorial, goToLobby, goToSettings } = useNavigation();
     const { createLobby, joinLobby, lobby } = useLobby();
     const { theme } = useTheme();
+    const { settings } = useSettings();
     const [roomCode, setRoomCode] = useState('');
 
     // Navigate to lobby when lobby is created/joined
@@ -18,12 +20,14 @@ function LandingPage() {
 
     const handleJoinRoom = () => {
         if (roomCode.trim().length >= 4) {
-            joinLobby(roomCode.trim());
+            const username = settings.defaultName.trim() || undefined;
+            joinLobby(roomCode.trim(), username);
         }
     };
 
     const handleCreateRoom = () => {
-        createLobby();
+        const username = settings.defaultName.trim() || undefined;
+        createLobby(username);
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
