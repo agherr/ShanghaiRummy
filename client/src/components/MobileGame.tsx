@@ -128,6 +128,14 @@ export default function MobileGame() {
                 TURN
               </span>
             )}
+            {/* Buy indicators - show 3 money emojis, replacing with red X as buys are used */}
+            <div className="flex gap-0.5 text-lg">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <span key={i}>
+                  {i < player.buysThisRound ? '❌' : '💰'}
+                </span>
+              ))}
+            </div>
           </div>
           <div className="text-sm text-gray-600">
             {player.totalScore} pts
@@ -138,11 +146,6 @@ export default function MobileGame() {
           <div className="flex items-center gap-1">
             <span className="text-gray-500">Cards:</span>
             <span className="font-semibold">{player.cardCount}</span>
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <span className="text-gray-500">Buys:</span>
-            <span className="font-semibold">{player.buysThisRound}/3</span>
           </div>
           
           {player.hasPlacedContract && (
@@ -287,16 +290,20 @@ export default function MobileGame() {
 
           {/* Buying Phase Indicator */}
           {isBuyingPhase && isMyBuyTurn && (
-            <div className="mt-3 text-center">
-              <div className="inline-block bg-purple-400 text-purple-900 px-4 py-2 rounded-lg font-bold mb-2">
-                💰 Click the discard to buy ({myPlayer ? 3 - myPlayer.buysThisRound : 0} buys left)
+            <div className="mt-3 text-center space-y-2">
+              <div>
+                <button
+                  onClick={passBuy}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold shadow-lg transition-colors"
+                >
+                  Pass
+                </button>
               </div>
-              <button
-                onClick={passBuy}
-                className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold shadow-lg transition-colors"
-              >
-                Pass
-              </button>
+              <div>
+                <div className="inline-block bg-purple-400 text-purple-900 px-4 py-2 rounded-lg font-bold">
+                  💰 Click the discard to buy ({myPlayer ? 3 - myPlayer.buysThisRound : 0} buys left)
+                </div>
+              </div>
             </div>
           )}
 
