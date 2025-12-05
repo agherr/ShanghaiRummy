@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import type { Card, Player } from '@shanghairummy/shared';
 import ContractPlacementModal from './ContractPlacementModal';
+import { useTheme } from '../hooks/useTheme';
 
 export default function MobileGame() {
   const { 
@@ -16,6 +17,7 @@ export default function MobileGame() {
     discardCard, 
     placeContract
   } = useGame();
+  const { theme } = useTheme();
   const [showPlacementModal, setShowPlacementModal] = useState(false);
 
   if (!gameState) {
@@ -79,7 +81,7 @@ export default function MobileGame() {
         className={`
           relative bg-white rounded-lg shadow-md p-2 min-w-[60px] h-[85px]
           flex flex-col items-center justify-between border-2 border-gray-300
-          ${isClickable ? 'hover:shadow-lg hover:scale-105 hover:border-blue-500 cursor-pointer' : 'cursor-default'}
+          ${isClickable ? `hover:shadow-lg hover:scale-105 hover:${theme.border} cursor-pointer` : 'cursor-default'}
           ${!isClickable && selectable ? 'opacity-50' : ''}
           transition-all duration-150
         `}
@@ -175,7 +177,7 @@ export default function MobileGame() {
       )}
 
       {/* Top Section - Deck and Discard */}
-      <div className="bg-blue-800 shadow-lg p-4">
+      <div className={`${theme.bg} shadow-lg p-4`}>
         <div className="max-w-md mx-auto">
           <div className="text-white text-center mb-3">
             <div className="text-sm opacity-90">Round {round}/7</div>
@@ -189,9 +191,9 @@ export default function MobileGame() {
                 onClick={drawFromDeck}
                 disabled={!canDraw}
                 className={`
-                  w-20 h-28 bg-blue-600 rounded-lg shadow-lg
-                  border-4 border-blue-400 flex items-center justify-center
-                  ${canDraw ? 'hover:bg-blue-500 cursor-pointer' : 'opacity-50 cursor-not-allowed'}
+                  w-20 h-28 ${theme.bg} rounded-lg shadow-lg
+                  border-4 ${theme.border} flex items-center justify-center
+                  ${canDraw ? `${theme.hover} cursor-pointer` : 'opacity-50 cursor-not-allowed'}
                   transition-all duration-150
                 `}
               >
@@ -213,7 +215,7 @@ export default function MobileGame() {
                   <div className="text-white text-sm mt-1">Discard</div>
                 </>
               ) : (
-                <div className="w-20 h-28 bg-blue-700 rounded-lg shadow-lg border-4 border-blue-500 flex items-center justify-center">
+                <div className={`w-20 h-28 ${theme.bgLight} rounded-lg shadow-lg border-4 ${theme.border} flex items-center justify-center`}>
                   <span className="text-white text-xs">Empty</span>
                 </div>
               )}
@@ -255,7 +257,7 @@ export default function MobileGame() {
       </div>
 
       {/* Bottom Section - My Hand */}
-      <div className="bg-blue-800 shadow-lg p-4 border-t-4 border-blue-600">
+      <div className={`${theme.bg} shadow-lg p-4 border-t-4 ${theme.border}`}>
         <div className="max-w-md mx-auto">
           <div className="text-white text-sm mb-2 font-semibold">
             Your Hand ({myHand.length} cards)

@@ -3,12 +3,14 @@ import { useNavigation } from '../contexts/NavigationContext';
 import { useLobby } from '../contexts/LobbyContext';
 import { useGame } from '../contexts/GameContext';
 import { useSocket } from '../contexts/SocketContext';
+import { useTheme } from '../hooks/useTheme';
 
 function Lobby() {
     const { goToLanding } = useNavigation();
     const { lobby, isHost, leaveLobby, kickPlayer, disbandLobby, changeName } = useLobby();
     const { startGame } = useGame();
     const { socket } = useSocket();
+    const { theme } = useTheme();
     const [copiedCode, setCopiedCode] = useState(false);
     const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
@@ -62,24 +64,24 @@ function Lobby() {
 
     if (!lobby) {
         return (
-            <div className='min-h-screen bg-blue-800 flex items-center justify-center'>
+            <div className={`min-h-screen ${theme.bg} flex items-center justify-center`}>
                 <div className='text-white text-xl'>Loading lobby...</div>
             </div>
         );
     }
 
     return (
-        <div className='min-h-screen bg-blue-800 flex items-center justify-center p-4'>
+        <div className={`min-h-screen ${theme.bg} flex items-center justify-center p-4`}>
             <div className='w-full max-w-2xl bg-white rounded-lg shadow-xl p-8'>
                 {/* Header */}
                 <div className='text-center mb-8'>
                     <h1 className='text-4xl font-bold text-gray-800 mb-4'>Game Lobby</h1>
                     <div className='flex items-center justify-center gap-3'>
                         <div className='text-sm text-gray-600'>Room Code:</div>
-                        <div className='text-3xl font-bold text-blue-600 tracking-wider'>{lobby.code}</div>
+                        <div className={`text-3xl font-bold ${theme.text} tracking-wider`}>{lobby.code}</div>
                         <button
                             onClick={handleCopyCode}
-                            className='bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm font-semibold transition-colors'
+                            className={`${theme.bgLight} ${theme.hover} ${theme.text} px-3 py-1 rounded text-sm font-semibold transition-colors`}
                         >
                             {copiedCode ? '✓ Copied!' : 'Copy'}
                         </button>
@@ -99,7 +101,7 @@ function Lobby() {
                                 className='flex items-center justify-between bg-gray-50 p-4 rounded-lg'
                             >
                                 <div className='flex items-center gap-3 flex-1'>
-                                    <div className='w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold'>
+                                    <div className={`w-10 h-10 ${theme.bg} rounded-full flex items-center justify-center text-white font-bold`}>
                                         {player.name.charAt(0).toUpperCase()}
                                     </div>
                                     <div className='flex-1'>
@@ -113,7 +115,7 @@ function Lobby() {
                                                         if (e.key === 'Enter') handleSaveName();
                                                         if (e.key === 'Escape') handleCancelEdit();
                                                     }}
-                                                    className='border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+                                                    className={`border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 ${theme.ring}`}
                                                     autoFocus
                                                     maxLength={20}
                                                 />
@@ -138,7 +140,7 @@ function Lobby() {
                                                 {player.id === socket?.id && (
                                                     <button
                                                         onClick={() => handleEditClick(player.id, player.name)}
-                                                        className='text-gray-500 hover:text-blue-600 transition-colors'
+                                                        className={`text-gray-500 hover:${theme.text} transition-colors`}
                                                         title='Edit name'
                                                     >
                                                         <svg xmlns='http://www.w3.org/2000/svg' className='h-4 w-4' viewBox='0 0 20 20' fill='currentColor'>

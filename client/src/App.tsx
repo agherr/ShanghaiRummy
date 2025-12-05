@@ -3,6 +3,7 @@ import { SocketProvider } from "./contexts/SocketContext";
 import { LobbyProvider } from "./contexts/LobbyContext";
 import { GameProvider } from "./contexts/GameContext";
 import { ErrorHandlerProvider } from "./contexts/ErrorHandlerContext";
+import { SettingsProvider } from "./contexts/SettingsContext";
 import { Toaster } from 'react-hot-toast';
 import LandingPage from "./components/LandingPage";
 import Lobby from "./components/Lobby";
@@ -10,6 +11,7 @@ import LoadingScreen from "./components/LoadingScreen";
 import MobileGame from "./components/MobileGame";
 import GameResults from "./components/GameResults";
 import HowToPlay from "./components/HowToPlay";
+import Settings from "./components/Settings";
 
 function AppContent() {
   const { currentPage } = useNavigation();
@@ -28,6 +30,8 @@ function AppContent() {
         return <GameResults />;
       case 'tutorial':
         return <HowToPlay />;
+      case 'settings':
+        return <Settings />;
       default:
         console.error('Unknown page state:', currentPage);
         return <LandingPage />;
@@ -69,17 +73,19 @@ function AppContent() {
 
 function App() {
   return (
-    <NavigationProvider>
-      <SocketProvider>
-        <ErrorHandlerProvider>
-          <LobbyProvider>
-            <GameProvider>
-              <AppContent />
-            </GameProvider>
-          </LobbyProvider>
-        </ErrorHandlerProvider>
-      </SocketProvider>
-    </NavigationProvider>
+    <SettingsProvider>
+      <NavigationProvider>
+        <SocketProvider>
+          <ErrorHandlerProvider>
+            <LobbyProvider>
+              <GameProvider>
+                <AppContent />
+              </GameProvider>
+            </LobbyProvider>
+          </ErrorHandlerProvider>
+        </SocketProvider>
+      </NavigationProvider>
+    </SettingsProvider>
   );
 }
 

@@ -1,11 +1,13 @@
 import { useNavigation } from "../contexts/NavigationContext";
+import { useTheme } from "../hooks/useTheme";
 
 
 function HowToPlay() {
     const { goToLanding } = useNavigation();
+    const { theme } = useTheme();
 
     return (
-        <div className='min-h-screen bg-blue-800 flex items-center justify-center'>
+        <div className={`min-h-screen ${theme.bg} flex items-center justify-center`}>
             <a target="_blank" href="https://letmegooglethat.com/?q=How+to+play+Shanghai+Rummy">Click Here To Learn How To Play!</a>
             <button
                 onClick={goToLanding}

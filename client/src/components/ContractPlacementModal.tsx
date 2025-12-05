@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Card, Contract } from '@shanghairummy/shared';
+import { useTheme } from '../hooks/useTheme';
 
 interface ContractPlacementModalProps {
   hand: Card[];
@@ -18,6 +19,7 @@ export default function ContractPlacementModal({
   onPlace,
   onCancel
 }: ContractPlacementModalProps) {
+  const { theme } = useTheme();
   const [placedGroups, setPlacedGroups] = useState<Card[][]>([]);
   const [currentGroup, setCurrentGroup] = useState<Card[]>([]);
   const [currentContractIndex, setCurrentContractIndex] = useState(0);
@@ -166,7 +168,7 @@ export default function ContractPlacementModal({
         className={`
           relative bg-white rounded-lg shadow-md p-2 min-w-[50px] h-[70px]
           flex flex-col items-center justify-between border-2
-          ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}
+          ${isSelected ? `${theme.border} ${theme.bgLighter}` : 'border-gray-300'}
           ${isPlaced ? 'opacity-40 cursor-not-allowed' : 'hover:shadow-lg hover:scale-105 cursor-pointer'}
           transition-all duration-150
         `}
@@ -188,7 +190,7 @@ export default function ContractPlacementModal({
     <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-blue-600 text-white p-4 rounded-t-lg">
+        <div className={`${theme.bg} text-white p-4 rounded-t-lg`}>
           <h2 className="text-xl font-bold">Place Your Contract</h2>
           <p className="text-sm opacity-90 mt-1">
             Step {currentContractIndex + 1} of {requiredContracts.length}
@@ -196,9 +198,9 @@ export default function ContractPlacementModal({
         </div>
 
         {/* Current Requirement */}
-        <div className="bg-blue-50 border-b border-blue-200 p-4">
+        <div className={`${theme.bgLighter} border-b ${theme.border} p-4`}>
           <div className="text-center">
-            <div className="text-lg font-bold text-blue-900">
+            <div className={`text-lg font-bold ${theme.text}`}>
               {currentRequirement.type === 'book' 
                 ? `Select ${currentRequirement.minCards}+ cards for Book ${placedGroups.filter(g => isValidBook(g)).length + 1}`
                 : `Select ${currentRequirement.minCards}+ cards for Run ${placedGroups.filter(g => isValidRun(g)).length + 1}`

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 
-type Page = 'landing' | 'lobby' | 'loading' | 'game' | 'results' | 'tutorial';
+type Page = 'landing' | 'lobby' | 'loading' | 'game' | 'results' | 'tutorial' | 'settings';
 
 interface NavigationContextType {
   currentPage: Page;
@@ -12,6 +12,7 @@ interface NavigationContextType {
   goToResults: () => void;
   goToTutorial: () => void;
   goToLanding: () => void;
+  goToSettings: () => void;
 }
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
@@ -27,6 +28,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   const goToResults = () => setCurrentPage('results');
   const goToTutorial = () => setCurrentPage('tutorial');
   const goToLanding = () => setCurrentPage('landing');
+  const goToSettings = () => setCurrentPage('settings');
 
   return (
     <NavigationContext.Provider
@@ -39,6 +41,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
         goToResults,
         goToTutorial,
         goToLanding,
+        goToSettings,
       }}
     >
       {children}
